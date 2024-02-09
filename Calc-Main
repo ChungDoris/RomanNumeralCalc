@@ -1,0 +1,225 @@
+from tkinter import Tk,Label,Frame, StringVar
+from tkmacosx import Button
+
+calc = Tk() #create the window
+calc.geometry("400x510") #initializes the window size in pixels
+calc.resizable(0,0) #Resizing is not allowed for the user (prevent sizing bugs)
+calc.title("Roman Numerals Calculator")
+
+#Color names initialized to aid referencing later on. 'click' means the color changes when it is clicked (or active)
+TextBackground = "#575252"
+LightGrey = "#817D7D"
+ClickLightGrey = "#B3B1B1"
+DarkGrey = "#676363"
+ClickDarkGrey = LightGrey
+Orange = "#FF9F0A"
+ClickOrange = "#CA7D06"
+
+clear_screen = False #initializes clear_screen so that by default, the display screen isn't cleared
+
+class Calculator:
+    def __init__(self):
+        self.text = StringVar() #Display screen string. StringVar() is chosen so the screen label automatically updates when self.text changes. 
+        self.expression = StringVar() #The overall expression in the background. 
+    
+    def RtoA_letter(self, RLetter):
+        """Referencing arrays are set up so the same index strings will equate to each other. 
+        This allows Python to automatically know what values correspond to the Roman Numerals in an efficient way.
+        Note that 'N' and '0' are dummy Roman Numerals that will be useful in self.RtoA_string."""
+        Roman_Ref = ["M\u0305","D\u0305","C\u0305","L\u0305","X\u0305","V\u0305","M","D","C","L","X","V","I","N"]
+        Digit_Ref = ["1000000","500000","100000","50000","10000","5000","1000","500","100","50","10","5","1","0"]
+        index = Roman_Ref.index(RLetter)
+        ANum = Digit_Ref[index]
+        return ANum
+    
+    def RtoA_string(self, RomanNumerals):
+        A_str = "0" #Starts the expression as operators will be added first before the next number
+        RomanNumerals = RomanNumerals + "NN" #N is added so that at last 'pair', the last R2 can also be included as R1
+        overline = "\u0305"
+        Total_letters = len(RomanNumerals) - 2
+        #Creates a mini-expression that compares each pair of letters. If the previous is smaller, then subtraction rule applies. 
+        for pair in range(Total_letters):
+            if RomanNumerals[pair+1]==overline and RomanNumerals[pair+3]!=overline: #C_X condition
+                Couple = [ RomanNumerals[pair:pair+2] , RomanNumerals[pair+2] ] 
+            elif RomanNumerals[pair+1]==overline and RomanNumerals[pair+3]==overline: #C_X_ condition
+                Couple = [ RomanNumerals[pair:pair+2] , RomanNumerals[pair+2:pair+4] ] 
+            elif RomanNumerals[pair+2]==overline and RomanNumerals[pair]!=overline: #CX_ condition but not '_X_' in 'C_X_'
+                Couple = [ RomanNumerals[pair] , RomanNumerals[pair+1:pair+3] ] 
+            elif RomanNumerals[pair]==overline: #Need to skip if alr calculated
+                Couple = ["N","N"]  
+            else: Couple = [ RomanNumerals[pair] , RomanNumerals[pair+1] ] #Else each pair is just consecutive letters
+            #Changes to Arabic numbers so they can be compared. 
+            A1,A2 = self.RtoA_letter(Couple[0]), self.RtoA_letter(Couple[1])
+            #If subtraction rule applies, the letter before will be subtracted and vice versa
+            if int(A1)>=int(A2):
+                A_str = A_str + "+" + A1
+            elif int(A1)<int(A2):
+                A_str = A_str + "-" + A1
+        A_str = eval(A_str)
+        return A_str
+    
+    def AtoR(self, input):
+        global Reference, index, output
+        Error = False #Assume default with no error
+        Result = "" #The result of each digit
+        R_string = "" #The full outcome when the results are added together
+        reversed_input = input[::-1] #Reverses the number so that the index will correspond to the power of 10s
+        power=len(input)-1 #The length of the integer implies the power of 10s the number goes up to. But since will use it as power index, we minus 1.
+        #These two references are used when 1. doesn't need an overline 2. when overline is used (number >=4000)
+        Roman_ref = [['I','V'], ['X','L'], ['C','D'], ['M','0']]
+        Roman_overline_ref = [['M','V\u0305'], ['X\u0305','L\u0305'], ['C\u0305','D\u0305'], ['M\u0305','0']]
+        #The 'for' loops through each digit, working from low to high power of 10s
+        for i in range(power+1): 
+            digit = int(reversed_input[i])
+            #Check if the number is within 4,000,000 (the upper limit of this calculator)
+            if i<3:
+                Reference = Roman_ref
+                index = i
+            elif 6>=i>=3:
+                Reference = Roman_overline_ref
+                index = i-3
+                if i==6 and reversed_input[i]>"3":
+                    Error = True
+                    output = "Error: Click AC" #Provides further instruction to reset calculator to continue. 
+            else: 
+                Error = True
+                output = "Error: Click AC"
+            #Only runs the code if there's no error. Else error is outputted. 
+            if not Error:
+                #A list of 'if' statements will allocate the Roman Numerals differently based on the digit. 
+                if 3>=digit>0:
+                    for j in range(digit):
+                        Result = Result + Reference[index][0] 
+                elif digit==4:
+                    Result = Reference[index][0] + Reference[index][1]
+                elif digit==5:
+                    Result = Reference[index][1]
+                elif 6<=digit<9:
+                    Result = Reference[index][1]
+                    for j in range(digit-5):
+                        Result = Result + Reference[index][0]
+                elif digit==9:
+                    Result = Reference[index][0] + Reference[index+1][0]
+                R_string = Result + R_string #appends to the mini-expression and moves onto the next digit. 
+                Result = "" #resets 'result' for next digit
+            else: 
+                R_string = output #returns an error message if the number is greater than 4 million
+        return R_string
+    
+    def click(self,btn_text):
+        global clear_screen
+        str_exp = self.expression.get()
+        operations = ["+","-","*","/"]
+        #Check if expression is empty
+        if str_exp == "":
+            str_exp = "0" #or else the next "if" won't work
+        else: 
+            str_exp = self.expression.get()
+        #If just pressed an operator or at initial state
+        if clear_screen==True:
+            self.text.set(btn_text)
+            clear_screen=False
+        else: self.text.set(self.text.get()+btn_text)
+        
+    def clear(self):
+        #Resets everything
+        self.text.set("")
+        self.expression.set("")
+    
+    def operator(self, sign):
+        #This function is for + and -. It evaluates the roman input so far into arabic digits and append it into the total expression along with the operator sign. The 'clear_screen' allows the screen to be cleared when the next button is clicked. 
+        global clear_screen
+        input_num = str(self.RtoA_string(self.text.get()))
+        self.expression.set(self.expression.get() + input_num + sign)
+        clear_screen = True
+    
+    def times(self,sign):
+        #Similar to the operator function, except parenthesis are added to times expression so far and the next number. Again, the number is evaluated from the roman input on the screen. 
+        global clear_screen
+        input_num = str(self.RtoA_string(self.text.get()))
+        new_expression = "(" + self.expression.get() + input_num + ")" + sign
+        self.expression.set(new_expression)
+        clear_screen = True
+        
+    def equal(self):
+        #First the input on the screen is added into the expression. Then the expression is evaluated and the screen will output the roman conversion of that result. The calculator resets by clearing expression and clear_screen = True. 
+        global clear_screen
+        input_num = str(self.RtoA_string(self.text.get()))
+        new_expression = self.expression.get() + input_num
+        self.expression.set(new_expression)
+        result = str(eval(new_expression))
+        result_roman = self.AtoR(result)
+        self.text.set(result_roman)
+        self.expression.set("")
+        clear_screen = True
+    
+    def delete(self):
+        #The last letter of the screen input is removed
+        last = len(self.text.get())-1
+        screen = self.text.get()
+        screen = screen[0:last]
+        self.text.set(screen)
+    
+    def overline(self, R_numerals):
+        #Although in Jupyter Notebook, placing "\u0305" before the letter makes the overline. But somehow in the tkinterface, it has to be after
+        self.text.set(R_numerals + "\u0305" )
+
+CalcScreen = Calculator()
+
+#Creates the frame of the display screen as well as the text shown to the user
+Display_Frame = Frame(calc, width=390, height=100, bg=TextBackground)
+Display_Frame.grid(row=1, column=1, padx=5, pady=5, columnspan=3) 
+# padx,pady means the pixel in the outside spaces, like padding between elements. 
+# Column span indicates that this frame crosses 3 columns to that it fills up the whole first row. 
+
+Display_Text = Label(textvariable=CalcScreen.text, font=('Helvetica',30),fg="white", bg=TextBackground)
+Display_Text.grid(row=1, column=1, columnspan=3, sticky="e", padx=10)
+
+#Creates the buttons on the calculator with corresponding functions called whenever it is clicked. 
+I = Button(text="I", bg=LightGrey, fg="white", activebackground=ClickLightGrey,  height=70, command=lambda: CalcScreen.click("I") )
+I.grid(row=3, column=1, padx=5, pady=5, sticky="wens")
+
+V = Button(text="V", bg=LightGrey, fg="white", activebackground=ClickLightGrey, height=70, command=lambda: CalcScreen.click("V"))
+V.grid(row=3, column=2, padx=0, pady=5, sticky="wens")
+
+X = Button(text="X", bg=LightGrey, fg="white", activebackground=ClickLightGrey, height=70, command=lambda: CalcScreen.click("X"))
+X.grid(row=4, column=1, padx=5, pady=5, sticky="wens")
+
+L = Button(text="L", bg=LightGrey, fg="white",activebackground=ClickLightGrey,  height=70, command=lambda: CalcScreen.click("L"))
+L.grid(row=4, column=2, padx=0, pady=5, sticky="wens")
+
+C = Button(text="C", bg=LightGrey, fg="white", activebackground=ClickLightGrey, height=70, command=lambda: CalcScreen.click("C"))
+C.grid(row=5, column=1, padx=5, pady=5, sticky="wens")
+
+D = Button(text="D", bg=LightGrey, fg="white", activebackground=ClickLightGrey, height=70, command=lambda: CalcScreen.click("D"))
+D.grid(row=5, column=2, padx=0, pady=5, sticky="wens")
+
+M = Button(text="M", bg=LightGrey, fg="white", activebackground=ClickLightGrey, height=70, command=lambda: CalcScreen.click("M"))
+M.grid(row=6, column=1, padx=5, pady=5, sticky="wens")
+
+Overline = Button(text="O\u0305V\u0305E\u0305R\u0305L\u0305I\u0305N\u0305E\u0305", bg=LightGrey, fg="white", activebackground=ClickLightGrey, height=70, command=lambda: CalcScreen.overline(CalcScreen.text.get()))
+Overline.grid(row=6, column=2, padx=0, pady=5, sticky="wens")
+
+AC = Button(text="AC", bg=DarkGrey, fg="white", activebackground=ClickDarkGrey, height=70,  command=lambda: CalcScreen.clear())
+AC.grid(row=2, column=1, padx=5, pady=5, sticky="wens")
+
+Del = Button(text="<", bg=DarkGrey, fg="white", activebackground=ClickDarkGrey, height=70,  command=lambda: CalcScreen.delete())
+Del.grid(row=2, column=2, padx=0, pady=5, sticky="wens")
+
+Divide = Button(text="/", bg=Orange, fg="white", activebackground=ClickOrange, height=70, command=lambda: CalcScreen.times("/"))
+Divide.grid(row=2, column=3, padx=5, pady=5, sticky="wens")
+
+Times = Button(text="*", bg=Orange, fg="white", activebackground=ClickOrange, height=70, command=lambda: CalcScreen.times("*"))
+Times.grid(row=3, column=3, padx=5, pady=5, sticky="wens")
+
+Minus = Button(text="-", bg=Orange, fg="white", activebackground=ClickOrange, height=70, command=lambda: CalcScreen.operator("-"))
+Minus.grid(row=4, column=3, padx=5, pady=5, sticky="wens")
+
+Plus = Button(text="+", bg=Orange, fg="white", activebackground=ClickOrange, height=70, command=lambda: CalcScreen.operator("+"))
+Plus.grid(row=5, column=3, padx=5, pady=5, sticky="wens")
+
+Equal = Button(text="=", bg=Orange, fg="white", activebackground=ClickOrange, height=70, command=lambda: CalcScreen.equal())
+Equal.grid(row=6, column=3, padx=5, pady=5, sticky="wens")
+
+#Runs and continues the tk interface with real-time response
+calc.mainloop()
